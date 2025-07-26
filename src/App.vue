@@ -1,47 +1,280 @@
-<script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
-import TheWelcome from './components/TheWelcome.vue'
+<script setup>
+import { ref, shallowRef, computed, watch, nextTick } from "vue";
+import Chart from "chart.js/auto";
+
+const weights = ref([]);
+
+const weightChartEl = ref(null);
+
+const weightChart = shallowRef(null);
+
+const weightInput = ref(0);
+
+const currentWeight = computed(() => {
+  return weights.value.sort((a, b) => b.date - a.date)[0] || { weight: 0 };
+});
+
+const addWeight = () => {
+  weights.value.push({
+    weight: weightInput.value,
+    date: new Date().getTime(),
+  });
+};
+
+watch(
+  weights,
+  (newWeights) => {
+    const ws = [...newWeights];
+
+    if (weightChart.value) {
+      weightChart.value.data.labels = ws
+        .sort((a, b) => a.date - b.date)
+        .map((weight) => new Date(weight.date).toLocaleDateString())
+        .slice(-7);
+
+      weightChart.value.data.datasets[0].data = ws
+        .sort((a, b) => a.date - b.date)
+        .map((weight) => weight.weight)
+        .slice(-7);
+
+      weightChart.value.update();
+      return;
+    }
+
+    nextTick(() => {
+      weightChart.value = new Chart(weightChartEl.value.getContext("2d"), {
+        type: "line",
+        data: {
+          labels: ws
+            .sort((a, b) => a.date - b.date)
+            .map((weight) => new Date(weight.date).toLocaleDateString()),
+          datasets: [
+            {
+              label: "Weight",
+              data: ws
+                .sort((a, b) => a.date - b.date)
+                .map((weight) => weight.weight),
+              backgroundColor: "rgba(255, 105, 180, 0.2)",
+              borderColor: "rgba(255, 105, 180, 1)",
+              borderWidth: 1,
+              fill: true,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+        },
+      });
+    });
+  },
+  { deep: true }
+);
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-    </div>
-  </header>
-
   <main>
-    <TheWelcome />
+    <div class="container">
+      <h1>Painoseuranta - Weight Tracker</h1>
+
+      <div class="current">
+        <span>{{ currentWeight.weight }}</span>
+        <small>Current Weight (kg)</small>
+      </div>
+
+      <form @submit.prevent="addWeight">
+        <input type="number" step="0.1" v-model="weightInput" min="1" max="500"/>
+
+        <input type="submit" value="Add weight" />
+      </form>
+
+      <div v-if="weights && weights.length > 0">
+        <h2>Last 7 days</h2>
+
+        <div class="canvas-box">
+          <canvas ref="weightChartEl"></canvas>
+        </div>
+
+        <div class="weight-history">
+          <h2>Weight History</h2>
+          <ul>
+            <li v-for="weight in weights">
+              <span>{{ weight.weight }}kg</span>
+              <small>
+                {{ new Date(weight.date).toLocaleDateString() }}
+              </small>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </main>
 </template>
 
-<style scoped>
-header {
-  line-height: 1.5;
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "montserrat", sans-serif;
 }
 
-.logo {
-  display: block;
+body {
+  background-image: url("./assets/bg.jpg");
+  background-size: cover;
+  background-repeat: no-repeat; 
+  height: 100vh;
+}
+
+main {
+  padding: 1.5rem;
+  display: flex;
+  justify-content: center; /* Horizontal center */
+  align-items: center; /* Vertical center */
+}
+
+.container {
+  width: 70%;
+  text-align: center;
+}
+
+h1 {
+  font-size: 2em;
+  text-align: center;
+  margin-bottom: 2rem;
+  color: rgb(213, 212, 212);
+}
+
+h2 {
+  margin-bottom: 1rem;
+  color: #888;
+  font-weight: 400;
+}
+
+.current {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  width: 200px;
+  height: 200px;
+
+  text-align: center;
+  background-color: white;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 5px solid rgb(230, 199, 76);
+
   margin: 0 auto 2rem;
 }
 
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
+.current span {
+  display: block;
+  font-size: 2em;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
 
-  .logo {
-    margin: 0 2rem 0 0;
-  }
+.current small {
+  color: #888;
+  font-style: italic;
+}
 
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
+form {
+  display: flex;
+  margin-bottom: 2rem;
+  border: 1px solid #aaa;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  transition: 200ms linear;
+}
+
+form:focus-within,
+form:hover {
+  border-color: rgb(199 167 38);
+  border-width: 2px;
+}
+
+form input[type="number"] {
+  appearance: none;
+  outline: none;
+  border: none;
+  background-color: white;
+
+  flex: 1 1 0%;
+  padding: 1rem 1.5rem;
+  font-size: 1.25rem;
+}
+
+form input[type="submit"] {
+  appearance: none;
+  outline: none;
+  border: none;
+  cursor: pointer;
+  background-color: rgb(199 167 38);
+
+  padding: 0.5rem 1rem;
+
+  color: white;
+  font-size: 1.25rem;
+  font-weight: 700;
+  transition: 200ms linear;
+  border-left: 3px solid transparent;
+}
+
+form input[type="submit"]:hover {
+  background-color: white;
+  color: rgb(230, 199, 76);
+  border-left-color: rgb(230, 199, 76);
+}
+
+.canvas-box {
+  width: 100%;
+  max-width: 720px;
+  background-color: white;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.weight-history ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.weight-history ul li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  cursor: pointer;
+}
+
+.weight-history ul li:nth-child(even) {
+  background-color: #272727;
+}
+
+.weight-history ul li:hover {
+  background-color: #272727;
+}
+
+.weight-history ul li:last-of-type {
+  border-bottom: none;
+}
+
+.weight-history ul li span {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-right: 1rem;
+  color: rgb(213, 212, 212);
+}
+
+.weight-history ul li small {
+  color: #888;
+  font-style: italic;
 }
 </style>
